@@ -271,6 +271,7 @@ sudo journalctl -u shift-management -n 50 --no-pager
 | Apache default page or `404` on port 80 | Open the URL with `:8000/login`. Apache configuration does not control this service. |
 | Service cannot start: address already in use | Stop the manually launched Artisan server, then restart the systemd service. |
 | Login returns `500` | Inspect the service journal and private `storage/logs/` files locally. Keep `APP_DEBUG=false` and redact secrets before sharing errors. |
+| Manager dashboard returns `500`; log says `signup_settings` does not exist and signup migration is `Pending` | Updated code needs the signup database migration. Follow [the confirmed dashboard recovery procedure](DEPLOYMENT.md#admin-dashboard-500-after-an-update) for backup, migration, service restart and verification. A signed-in manager's `/login` can redirect to the same failing dashboard. |
 
 If placeholder text was used as a password, generate two new passwords and open the private MariaDB console from step 2. Replace the placeholders **before** running:
 

@@ -91,6 +91,8 @@ php artisan up
 
 These are the existing [deployment update commands](DEPLOYMENT.md#raspberry-pi-and-apache-configuration); do not recreate the database or regenerate the key. If that installation uses a single schema-scoped local database account instead of `.env.migrate`, use its normal `php artisan migrate` procedure. Follow [the Pi guide](PI-INSTALLATION.md) for its service/path settings. No new Composer package, Node build, queue, scheduled task or storage link is needed.
 
+If the manager dashboard returns `500` after a code update, and the log names a missing `signup_settings` table while this migration remains `Pending`, follow [the dashboard recovery procedure](DEPLOYMENT.md#admin-dashboard-500-after-an-update). It explains the login redirect, diagnosis, migration commands and expected verification results.
+
 Verify both settings are closed after the first migration. Applying later unrelated migrations or restarting does not reset the manager's saved choices. The bootstrap command `php artisan app:create-manager` remains the way to create the first manager; manager signup cannot approve itself.
 
 Backups must retain both new tables as well as all existing tables and the original key. Pending rows contain personal details and password hashes; keep them in the same confidential MariaDB backup and restore process. Deleting/approving a request does not rewrite old backup archives. Signup settings are restored with the database, so check whether either page is enabled before exposing a restored installation. Existing backup schema/table-count checks should include `signup_settings` and `pending_signup_requests`.

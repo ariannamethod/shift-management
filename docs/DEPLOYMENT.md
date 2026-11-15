@@ -326,6 +326,62 @@ Check Apache and application logs after deployment. `/up` confirms that Laravel 
 
 When updating, do not use `migrate:rollback` as an automatic recovery step: deletion and edited business records may make a reverse migration unsafe. Keep the old reviewed source revision and pre-update database/files backup available. If an update fails, keep maintenance mode while diagnosing; an operator chooses a compatible code rollback or a reviewed full restore. Record any data written since the backup before choosing to discard it.
 
+## Admin dashboard 500 after an update
+
+An existing Raspberry Pi installation reported HTTP `500` while a manager was signed in. Its log identified the missing signup settings table, and migration status showed the signup migration had not run:
+
+```text
+SQLSTATE[42S02]: Base table or view not found: 1146 Table 'shift_management.signup_settings' doesn't exist
+2026_11_03_000000_create_signup_tables ... Pending
+```
+
+The database name may differ on another installation. This diagnosis applies when the missing table and pending migration match; other `500` errors need their own log investigation.
+
+**Cause:** updated application code was running against the older database schema. `Admin/UserController::index()` reads `signup_settings` and `pending_signup_requests` on every dashboard request, even when registration is closed. An authenticated manager visiting `/login` is redirected to `/admin`, so the browser can appear stuck on the error page. Forcing logout does not create the missing tables.
+
+**Confirm on the affected server:** use its terminal or SSH as the deployment account. For the documented Pi project path, run:
+
+```bash
+cd ~/shift-management
+tail -n 80 storage/logs/laravel*.log
+php artisan migrate:status
+```
+
+Use the actual project directory if it differs. Keep `APP_DEBUG=false`; inspect logs privately and redact credentials, tokens and personal details before sharing an exception. For the port-8000 service, startup/logging failures can also be inspected with `sudo journalctl -u shift-management -n 80 --no-pager`.
+
+**Repair the confirmed pending migration:**
+
+1. Complete the [database and private-files backup](#off-device-backup-and-restore-rehearsal), preserving `.env`, `.env.migrate` and the original `APP_KEY`. Omit the two missing signup tables from pre-migration table-count checks.
+2. Check that the existing [private migration environment](PI-INSTALLATION.md#4-create-envmigrate) points to the same application database/socket as normal `.env`, using its migration credentials. From the project root, run these commands individually:
+
+   ```bash
+   php artisan down --retry=60
+   php artisan config:clear
+   php artisan migrate --env=migrate --force
+   ```
+
+   Clearing configuration first lets Laravel load `.env.migrate` instead of cached runtime credentials. An installation using one schema-scoped account with migration privileges and no `.env.migrate` should use `php artisan migrate --force` for the last command.
+3. Continue only after the signup migration reports `DONE`. If it fails, keep maintenance mode and investigate the exact error before continuing. Once it succeeds, rebuild caches using the normal runtime environment, then reopen the site:
+
+   ```bash
+   php artisan config:cache
+   php artisan route:cache
+   php artisan view:cache
+   php artisan up
+   ```
+
+   Run these commands individually and stop on failure. In particular, run `config:cache` without `--env=migrate` so web requests retain runtime database credentials.
+4. For the [Pi port-8000 systemd installation](PI-INSTALLATION.md#6-run-the-site-as-a-service), restart its service:
+
+   ```bash
+   sudo systemctl restart shift-management
+   ```
+
+   This service command applies to that installation; use the existing Apache/PHP service procedure for an Apache deployment.
+5. Run `php artisan migrate:status` again and confirm `2026_11_03_000000_create_signup_tables` shows `Ran`. Refresh `/admin` in the manager's browser and verify the dashboard loads, including the signup-request section. The migration creates `signup_settings` and `pending_signup_requests`, starts both registration switches closed, and preserves existing accounts, passwords, sessions and work history. A forced logout is unnecessary for this repair.
+
+For future updates, apply the [signup update procedure](ACCOUNT-SIGNUP.md#install-or-update) before reopening the site and verify the manager dashboard afterward. Pulling code or restarting the server alone does not apply database migrations. These are operator recovery instructions; the reported log and pending status confirmed the cause, but successful Pi recovery still requires the checks above.
+
 ## Off-device backup and restore rehearsal
 
 Back up the database, the private `.env` containing the original `APP_KEY`, `storage/app/`, and the exact source revision/`composer.lock`. Protect backups as confidential account data and store them on encrypted off-device media or a secured backup server. Copying backups elsewhere on the Pi's own SD card does not protect against device failure. Agree who owns backup execution, its frequency and retention before the pilot; no scheduled backup or report job is installed by this application.
