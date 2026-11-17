@@ -262,4 +262,3 @@ class NativeTests(unittest.TestCase):
             self.assertEqual(db.execute('SELECT count(*) FROM sessions').fetchone()[0],0)
 
 if __name__=='__main__': unittest.main()
-

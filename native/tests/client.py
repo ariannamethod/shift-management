@@ -70,5 +70,3 @@ class Client:
             return response.status, payload, response_headers
         finally:
             connection.close()
-
-
