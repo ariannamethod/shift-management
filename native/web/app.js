@@ -193,9 +193,15 @@ async function accept(session) {
 }
 async function view(name) {
     S.page = name;
+    const workerWeek = name === "week" && S.user.role === "member";
     document
         .querySelectorAll("[data-page]")
-        .forEach((e) => (e.hidden = e.id !== "view-" + name));
+        .forEach((e) => {
+            // Reuse the receipt form and today's panels beneath the worker
+            // calendar, in that order, as well as through their own shortcuts.
+            e.hidden = e.id !== "view-" + name &&
+                !(workerWeek && ["view-receipts", "view-today"].includes(e.id));
+        });
     document
         .querySelectorAll("[data-view]")
         .forEach((e) =>
@@ -205,7 +211,7 @@ async function view(name) {
             ),
         );
     if (name === "week") await refreshWeek();
-    if (name === "today") {
+    if (name === "today" || workerWeek) {
         const v = await api("/api/today");
         const out = $("today-content");
         out.replaceChildren(node("h2", "", label(v.date)));
@@ -235,7 +241,7 @@ async function view(name) {
         if (!$("desk-date").value) $("desk-date").value = today();
         await refreshDesks();
     }
-    if (name === "receipts") {
+    if (name === "receipts" || workerWeek) {
         const r = (await api("/api/receipts?month=" + today().slice(0, 7)))
             .receipts[0];
         populate($("receipt-form"), {

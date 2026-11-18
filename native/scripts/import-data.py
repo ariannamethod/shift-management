@@ -21,7 +21,7 @@ def person(r, password=True):
 
 def connect(path):
     db=sqlite3.connect(path);db.execute('PRAGMA foreign_keys=ON');db.execute('PRAGMA trusted_schema=OFF');db.execute('PRAGMA synchronous=FULL')
-    if db.execute('PRAGMA user_version').fetchone()[0]!=100: raise ValueError('Wrong database version')
+    if db.execute('PRAGMA user_version').fetchone()[0] not in (100,101): raise ValueError('Wrong database version')
     return db
 
 def insert(db,table,columns,values):
@@ -81,7 +81,15 @@ def import_csv(source,target,dry):
     if not target.is_file(): raise ValueError('Database not found')
     content=source.read_text(encoding='utf-8-sig')
     if '\0' in content: raise ValueError('Invalid CSV')
-    rows=list(csv.DictReader(io.StringIO(content),strict=True));seen=set()
+    reader = csv.DictReader(io.StringIO(content), strict=True)
+    required = {'username', 'first_name', 'last_name', 'gender', 'password'}
+    allowed = required | {'birth_date'}
+    headers = reader.fieldnames or []
+    # DictReader otherwise silently keeps only the last duplicate column.
+    # Check even header-only files, before processing credentials or writing.
+    if len(headers) != len(set(headers)) or not required <= set(headers) or set(headers) - allowed:
+        raise ValueError('Invalid CSV headers')
+    rows=list(reader);seen=set()
     for r in rows:
         if None in r or any(v is None for v in r.values()): raise ValueError('CSV column mismatch')
         values=person(r)

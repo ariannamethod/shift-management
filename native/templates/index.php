@@ -49,12 +49,12 @@ submit() ?></form></div></section>
 <div id="application" class="content-shell" hidden><nav id="navigation" class="calendar-navigation" aria-label="דפי המערכת">
 <?php foreach (['week' => 'לוח שבועי', 'today' => 'היום במרכז', 'desks' => 'עמדות', 'receipts' => 'קבלות', 'profile' => 'הפרופיל שלי', 'admin' => 'ניהול'] as $key => $label) { ?><button class="button button--secondary" data-view="<?= $key ?>"<?= $key === 'admin' ? ' data-admin' : '' ?><?= in_array($key, ['desks', 'receipts']) ? ' data-worker' : '' ?>><?= $label ?></button><?php } ?></nav>
 <section id="view-week" data-page><div class="calendar-week-heading"><h1 id="week-title">לוח משמרות</h1><p id="week-range"></p></div><div class="calendar-navigation"><button id="previous-week" class="button button--secondary">שבוע קודם</button><button id="current-week" class="button button--secondary">השבוע</button><button id="next-week" class="button button--secondary">שבוע הבא</button></div><p id="week-help" class="calendar-help"></p><div id="calendar" class="calendar-scroll" tabindex="0" aria-label="לוח שבועי"></div></section>
+<section id="view-receipts" data-page hidden><div class="panel"><h1>קבלות לחודש הנוכחי</h1><form id="receipt-form"><?php select('has_receipts', 'האם יש קבלות?', ['false' => 'אין', 'true' => 'יש']);
+submit() ?></form></div></section>
 <section id="view-today" data-page hidden><div class="panel"><h1>היום במרכז</h1><div id="today-content"></div></div></section>
 <section id="view-desks" data-page hidden><div class="panel"><h1>עמדות עבודה</h1><p>הזמנת עמדה נפרדת מההרשמה למשמרת.</p><label>תאריך<input id="desk-date" class="form-control" type="date"></label><div id="desk-list"></div><form id="desk-form" class="form-grid"><input type="hidden" name="id"><div class="field"><label>עמדה<select class="form-control" name="desk_id" id="desk-select"></select></label></div><?php field('start_time', 'משעה', 'time');
 field('end_time', 'עד שעה', 'time');
 submit('שמירת עמדה') ?></form></div></section>
-<section id="view-receipts" data-page hidden><div class="panel"><h1>קבלות לחודש הנוכחי</h1><form id="receipt-form"><?php select('has_receipts', 'האם יש קבלות?', ['false' => 'אין', 'true' => 'יש']);
-submit() ?></form></div></section>
 <section id="view-profile" data-page hidden><div class="panel"><h1>הפרופיל שלי</h1><img id="profile-avatar" class="avatar" src="/images/default-avatar.svg" alt="תמונת הפרופיל" width="80" height="80"><form id="avatar-form"><label class="field">תמונת פרופיל (JPG, PNG, WebP; עד 2MB ו-2048 פיקסלים)<input name="photo" type="file" accept="image/jpeg,image/png,image/webp" required></label><button class="button button--secondary">עדכון תמונה</button><button class="button button--secondary" type="button" id="avatar-delete">הסרת תמונה</button></form><form id="profile-form" class="form-grid"><?php field('first_name', 'שם פרטי');
 field('last_name', 'שם משפחה');
 select('gender', 'מגדר', ['other' => 'אחר', 'male' => 'זכר', 'female' => 'נקבה']);

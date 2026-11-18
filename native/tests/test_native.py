@@ -206,6 +206,89 @@ class NativeTests(unittest.TestCase):
             self.assertEqual(db.execute('SELECT login FROM pending_signups').fetchall(),[('later-join',)])
         self.assertEqual(Client(self.port).request('POST','/api/login',{'login':'first-join','password':'Signup-password-17'})[0],200)
 
+    def test_old_signup_reviews_do_not_process_new_arrivals_after_queue_is_emptied(self):
+        # Two managers prepare decisions for the same worker. Once one handles
+        # it, the other's old confirmation must never act on a new manager.
+        self.assertEqual(self.admin.request('POST', '/api/admin/users', {
+            'login': 'second-manager', 'first_name': 'מנהל', 'last_name': 'בדיקה',
+            'gender': 'other', 'role': 'admin', 'password': 'Manager-test-password-18',
+        })[0], 200)
+        other = Client(self.port)
+        self.assertEqual(other.request('POST', '/api/login', {
+            'login': 'second-manager', 'password': 'Manager-test-password-18',
+        })[0], 200)
+        for role in ('member', 'admin'):
+            self.assertEqual(self.admin.request('POST', '/api/admin/signup-settings', {
+                'role': role, 'enabled': True,
+            })[0], 200)
+        for action in ('approve', 'delete'):
+            with self.subTest(action=action):
+                self.assertEqual(self.signup('original-' + action)[0], 200)
+                old = self.admin.request('POST', '/api/admin/signup-review', {'action': action})[1]
+                self.assertEqual((old['workers'], old['managers']), (1, 0))
+                current = other.request('POST', '/api/admin/signup-review', {'action': 'delete'})[1]
+                self.assertEqual(other.request('POST', '/api/admin/signup-process', {'token': current['token']})[0], 200)
+                self.assertEqual(self.signup('new-manager-' + action, 'manager')[0], 200)
+                result = self.admin.request('POST', '/api/admin/signup-process', {'token': old['token']})
+                self.assertEqual(result[0], 200, result[1])
+                self.assertEqual(result[1]['processed'], 0)
+                with sqlite3.connect(self.db) as db:
+                    self.assertEqual(db.execute('SELECT login,role FROM pending_signups').fetchall(),
+                                     [('new-manager-' + action, 'admin')])
+                    self.assertIsNone(db.execute('SELECT id FROM users WHERE login=?',
+                                                ('new-manager-' + action,)).fetchone())
+                cleanup = other.request('POST', '/api/admin/signup-review', {'action': 'delete'})[1]
+                self.assertEqual(other.request('POST', '/api/admin/signup-process', {'token': cleanup['token']})[0], 200)
+
+    def test_upgrade_retains_pending_requests_and_invalidates_old_review_tokens(self):
+        self.assertEqual(self.admin.request('POST', '/api/admin/signup-settings', {
+            'role': 'member', 'enabled': True,
+        })[0], 200)
+        self.assertEqual(self.signup('retained-request')[0], 200)
+        with sqlite3.connect(self.db) as db:
+            db.execute("UPDATE pending_signups SET id=85,review_error='retained note'")
+        old = self.admin.request('POST', '/api/admin/signup-review', {'action': 'approve'})[1]
+        self.server.terminate()
+        self.server.wait(timeout=5)
+        # Recreate the v100 table, including real pending data and a live token.
+        with sqlite3.connect(self.db) as db:
+            sql = db.execute("SELECT sql FROM sqlite_schema WHERE name='pending_signups'").fetchone()[0]
+            db.execute('ALTER TABLE pending_signups RENAME TO saved_pending')
+            db.execute(sql.replace(' AUTOINCREMENT', ''))
+            db.execute('INSERT INTO pending_signups SELECT * FROM saved_pending')
+            db.execute('DROP TABLE saved_pending')
+            db.execute('PRAGMA user_version=100')
+            pending = db.execute('SELECT * FROM pending_signups').fetchall()
+            users = db.execute('SELECT * FROM users ORDER BY id').fetchall()
+        for restart in range(2):
+            self.server = subprocess.Popen([
+                str(BINARY), '--db', str(self.db), '--port', str(self.port), '--web', str(ROOT / 'web'),
+            ], stdout=self.log, stderr=self.log)
+            for _ in range(100):
+                try:
+                    if self.admin.request('GET', '/healthz')[0] == 200:
+                        break
+                except OSError:
+                    pass
+                time.sleep(.02)
+            else:
+                self.fail('Upgraded server did not start')
+            with sqlite3.connect(self.db) as db:
+                self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0], 101)
+                self.assertEqual(db.execute('SELECT * FROM pending_signups').fetchall(), pending)
+                self.assertEqual(db.execute('SELECT * FROM users ORDER BY id').fetchall(), users)
+                self.assertEqual(db.execute('PRAGMA foreign_key_check').fetchall(), [])
+                self.assertEqual(db.execute('SELECT count(*) FROM signup_reviews').fetchone()[0], 0)
+            self.assertEqual(self.admin.request('POST', '/api/admin/signup-process', {'token': old['token']})[0], 409)
+            if restart == 0:
+                self.server.terminate()
+                self.server.wait(timeout=5)
+        current = self.admin.request('POST', '/api/admin/signup-review', {'action': 'approve'})[1]
+        self.assertEqual(self.admin.request('POST', '/api/admin/signup-process', {'token': current['token']})[1]['processed'], 1)
+        self.assertEqual(self.signup('after-upgrade')[0], 200)
+        with sqlite3.connect(self.db) as db:
+            self.assertGreater(db.execute('SELECT id FROM pending_signups').fetchone()[0], 85)
+
     def test_itzik_hours_clarification_confirmation_and_manager_schedule(self):
         week=(self.day+dt.timedelta(days=7))
         week=(week-dt.timedelta(days=(week.weekday()+1)%7)).isoformat()

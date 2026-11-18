@@ -39,6 +39,7 @@ Result api(App *, struct MHD_Connection *, const char *, const char *, json_obje
 Result fail(int, const char *, const char *);
 int db_open(App *, const char *, int);
 int bootstrap(App *);
+int upgrade_schema(App *);
 void db_close(App *);
 int serve(App *);
 #endif

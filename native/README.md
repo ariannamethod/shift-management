@@ -220,3 +220,37 @@ and hours. Numeric ranges in Hebrew replies use explicit direction isolation.
 Three focused HTTP cases passed locally and on Linux. The live browser replayed
 Sunday → `12-16` → past-date explanation → `בשבוע הבא`, receiving a proposal for
 2026-11-22, 12:00–16:00. It did not confirm or write a shift.
+
+### PR review corrections — 2026-11-18
+
+The connector's review of `80cb1f6` identified three confirmed defects:
+
+- Pending signup IDs could be reused after another manager emptied the queue,
+  allowing an old confirmation to act on a later request. Fresh databases now
+  use `AUTOINCREMENT`. On startup, the C runtime transactionally upgrades schema
+  100 to 101 before serving HTTP, preserving pending IDs and all request fields.
+  It invalidates existing review tokens because their numeric identities may
+  already be ambiguous; managers must prepare those confirmations again.
+- The worker landing page now shows the current-month receipt form immediately
+  below the calendar, followed by today's coworkers, birthdays and events.
+  These are the same panels used by the existing navigation shortcuts. Moving
+  to another week keeps today's information and the current receipt month.
+- CSV import validates the required/optional header set and rejects duplicate,
+  missing and unexpected headers before reading account rows, in dry-run and
+  write modes, including header-only files.
+
+Before updating an existing native installation, retain a backup using the old
+binary's `--backup` command or `scripts/manage.sh backup`. Schema-100 backups
+remain accepted by the new restore command and are upgraded at startup. An old
+binary cannot open schema 101; rollback requires the retained schema-100 backup.
+The Laravel database is not involved in this native schema update.
+
+Verification: both new data regressions failed against the previous binary /
+importer, then passed after the repairs. The local native suite passed **22 tests
+with one Linux-only bcrypt skip**. Coverage includes stale approval/deletion by
+two managers, version-100 upgrade with pending data and repeated startup, and
+invalid CSV headers with no account writes. A disposable local Chrome session
+verified the worker panel order at 1440px and 390px, saving/reloading receipts,
+today's date across week navigation, and manager visibility. Screenshots were
+inspected. PHP/JavaScript syntax and whitespace checks passed. This follow-up
+was tested locally; neither Polygon nor the Enter installation was updated.

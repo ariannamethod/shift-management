@@ -43,7 +43,7 @@ static const char *schema_sql =
     "CREATE TABLE signup_settings(role TEXT PRIMARY KEY CHECK(role IN('admin','member')),enabled "
     "INTEGER NOT NULL DEFAULT 0);"
     "INSERT INTO signup_settings(role) VALUES('admin'),('member');"
-    "CREATE TABLE pending_signups(id INTEGER PRIMARY KEY,login TEXT UNIQUE NOT NULL,first_name "
+    "CREATE TABLE pending_signups(id INTEGER PRIMARY KEY AUTOINCREMENT,login TEXT UNIQUE NOT NULL,first_name "
     "TEXT NOT NULL,last_name TEXT NOT NULL,gender TEXT NOT NULL,birth_date TEXT,"
     "role TEXT NOT NULL CHECK(role IN('admin','member')),password TEXT NOT NULL,created_at TEXT "
     "NOT NULL DEFAULT CURRENT_TIMESTAMP);"
@@ -53,4 +53,20 @@ static const char *schema_sql =
     "CREATE TABLE audit(id INTEGER PRIMARY KEY,at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,user_id "
     "INTEGER,action TEXT NOT NULL,target_id INTEGER);"
     "ALTER TABLE pending_signups ADD COLUMN review_error TEXT;"
-    "PRAGMA user_version=100;";
+    "PRAGMA user_version=101;";
+
+/* Old review tokens may already refer to reused IDs. Invalidate those tokens
+ * while retaining every pending request and its ID; managers review again. */
+static const char *signup_identity_migration_sql =
+    "BEGIN IMMEDIATE;"
+    "CREATE TABLE pending_signups_v101(id INTEGER PRIMARY KEY AUTOINCREMENT,"
+    "login TEXT UNIQUE NOT NULL,first_name TEXT NOT NULL,last_name TEXT NOT NULL,"
+    "gender TEXT NOT NULL,birth_date TEXT,role TEXT NOT NULL CHECK(role IN('admin','member')),"
+    "password TEXT NOT NULL,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,review_error TEXT);"
+    "INSERT INTO pending_signups_v101 SELECT id,login,first_name,last_name,gender,birth_date,"
+    "role,password,created_at,review_error FROM pending_signups;"
+    "DROP TABLE pending_signups;"
+    "ALTER TABLE pending_signups_v101 RENAME TO pending_signups;"
+    "DELETE FROM signup_reviews;"
+    "PRAGMA user_version=101;"
+    "COMMIT;";

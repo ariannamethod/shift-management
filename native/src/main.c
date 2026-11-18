@@ -99,7 +99,9 @@ static int valid_db(sqlite3 *db) {
         return 0;
     if (sqlite3_prepare_v2(db, "PRAGMA user_version", -1, &s, NULL) != SQLITE_OK)
         return 0;
-    valid = sqlite3_step(s) == SQLITE_ROW && sqlite3_column_int(s, 0) == 100;
+    /* Backups from v100 remain restorable; startup upgrades them before HTTP. */
+    valid = sqlite3_step(s) == SQLITE_ROW &&
+            (sqlite3_column_int(s, 0) == 100 || sqlite3_column_int(s, 0) == 101);
     sqlite3_finalize(s);
     if (!valid)
         return 0;
@@ -352,6 +354,9 @@ int main(int argc, char **argv) {
         success = bootstrap(&a);
     else if (!valid_db(a.db)) {
         fprintf(stderr, "Unsupported or damaged database\n");
+        success = 0;
+    } else if (!upgrade_schema(&a)) {
+        fprintf(stderr, "Database schema upgrade failed\n");
         success = 0;
     } else {
         char tools[4352], examples[4352], error[256];

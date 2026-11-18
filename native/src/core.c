@@ -547,6 +547,24 @@ static json_object *rows(sqlite3_stmt *s) {
 
 #include "schema.h"
 
+/* Called after database validation and while holding the server's file lock. */
+int upgrade_schema(App *a) {
+    sqlite3_stmt *s = stmt(a, "PRAGMA user_version");
+    if (!s)
+        return 0;
+    int version = sqlite3_step(s) == SQLITE_ROW ? sqlite3_column_int(s, 0) : -1;
+    sqlite3_finalize(s);
+    if (version == 101)
+        return 1;
+    if (version != 100)
+        return 0;
+    if (!execsql(a, signup_identity_migration_sql)) {
+        execsql(a, "ROLLBACK");
+        return 0;
+    }
+    return 1;
+}
+
 /* All scheduling choices and their exact local times live in one definition. */
 typedef struct {
     const char *code, *start, *end;
