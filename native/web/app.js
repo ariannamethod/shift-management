@@ -904,10 +904,19 @@ bind("itzik-form", async (v, f) => {
     bubble(v.text, true);
     const input = S.pending ? S.pending + " " + v.text : v.text;
     f.reset();
-    const r = await api("/api/wolfe", "POST", {
-        text: input,
-        week_start: S.start,
-    });
+    let r;
+    try {
+        r = await api("/api/wolfe", "POST", {
+            text: input,
+            week_start: S.start,
+        });
+    } catch (error) {
+        if (ticket === S.chat && epoch === S.epoch) {
+            S.pending = "";
+            bubble(error.message);
+        }
+        return;
+    }
     if (ticket !== S.chat || epoch !== S.epoch) return;
     S.pending = r.status === "missing_arguments" ? input : "";
     const b = bubble(r.message);

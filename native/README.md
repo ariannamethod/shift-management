@@ -187,3 +187,22 @@ is included in `deploy/` as the exact Polygon configuration.
   accounts. Existing learner records have not been supplied or imported.
 - Portrait SHA-256 matches Mishmoret:
   `de40f8823e38fe496ae5315e5412d114da329d9fd2485b39dad28bfd11cfcdf5`.
+
+### Itzik wording correction — 2026-11-18
+
+Oleg's two screenshot requests (`קבע לי ליום ראשון בבוקר` and
+`קבע לי בחממה ביום ראשון בבוקר`) returned `no_call` in the initial integration.
+The earlier check covered `תרשום אותי` and missed these ordinary formulations.
+Added 65 positive/negative examples, additional numeric-hour aliases, polite
+weekly-view requests and short help/greeting replies. A worker's vague morning
+request asks for exact hours; an hour-only follow-up retains the requested day.
+Managers receive the role explanation before being asked for booking details.
+API errors now appear in the chat itself. Proposal confirmation and all existing
+booking permissions remain in force. The screenshot regression includes both
+roles, follow-up date preservation, other booking phrasings and negation.
+
+Verification: local suite 18 passed / 1 Linux-only skip; both Itzik HTTP cases
+passed on Polygon's Linux build. The live browser check exercised the exact
+screenshot request as manager and as worker, then the short `מ 9 עד 13` follow-up.
+It observed a role explanation or a confirmation proposal respectively, without
+confirming or writing a shift.

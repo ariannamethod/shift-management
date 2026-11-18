@@ -261,4 +261,35 @@ class NativeTests(unittest.TestCase):
             self.assertEqual(db.execute('SELECT count(*) FROM shifts').fetchone()[0],1)
             self.assertEqual(db.execute('SELECT count(*) FROM sessions').fetchone()[0],0)
 
+    def test_itzik_screenshot_requests_and_hour_followup(self):
+        next_week=__import__('datetime').date.fromisoformat(self.week)+dt.timedelta(days=7)
+        for phrase in ['קבע לי ליום ראשון בבוקר','קבע לי בחממה ביום ראשון בבוקר','תקבע לי ביום שני בבוקר']:
+            with self.subTest(phrase=phrase):
+                r=self.worker.request('POST','/api/wolfe',{'text':phrase,'week_start':next_week.isoformat()})
+                self.assertEqual(r[0],200,r[1])
+                self.assertEqual(r[1]['status'],'missing_arguments',r[1])
+                self.assertEqual(r[1]['missing'],['period'])
+                self.assertIsNone(r[1]['proposal'])
+                follow=self.worker.request('POST','/api/wolfe',{'text':phrase+' מ 9 עד 13','week_start':next_week.isoformat()})
+                self.assertEqual(follow[0],200,follow[1])
+                self.assertEqual(follow[1]['proposal']['period'],'09_13')
+                expected=next_week+dt.timedelta(days=1 if 'שני' in phrase else 0)
+                self.assertEqual(follow[1]['proposal']['date'],expected.isoformat())
+                manager=self.admin.request('POST','/api/wolfe',{'text':phrase,'week_start':self.week})
+                self.assertEqual(manager[0],403,manager[1])
+                self.assertEqual(manager[1]['error'],'worker_only')
+        for phrase,period in [('אני רוצה משמרת ביום שני מ-10 עד 14','10_14'),('אפשר להגיע ביום רביעי מ-11 עד 15','11_15'),('תשבץ אותי ביום חמישי מ-12 עד 16','12_16'),('תוכל לרשום אותי ביום ראשון יום מלא','full')]:
+            r=self.worker.request('POST','/api/wolfe',{'text':phrase,'week_start':next_week.isoformat()})
+            self.assertEqual(r[0],200,r[1])
+            self.assertEqual(r[1]['proposal']['period'],period)
+        r=self.admin.request('POST','/api/wolfe',{'text':'אפשר לראות את המערכת השבועית','week_start':self.week})
+        self.assertEqual(r[1]['action'],'show_schedule',r[1])
+        for phrase in ['אל תקבע לי ביום ראשון בבוקר','אל תקבע לי ביום ראשון מ-9 עד 13','לא רוצה להירשם ביום ראשון בבוקר']:
+            r=self.worker.request('POST','/api/wolfe',{'text':phrase,'week_start':next_week.isoformat()})
+            self.assertEqual(r[0],200,r[1])
+            self.assertIsNone(r[1]['proposal'],r[1])
+            self.assertNotEqual(r[1]['status'],'missing_arguments',r[1])
+        with sqlite3.connect(self.db) as db:
+            self.assertEqual(db.execute('SELECT count(*) FROM shifts').fetchone()[0],0)
+
 if __name__=='__main__': unittest.main()

@@ -1761,11 +1761,22 @@ static Result wolfe_command(App *a, const Identity *u, json_object *j) {
     if (strstr(text, "מהבית") || strstr(text, "בבית") || strstr(text, "מרחוק"))
         return fail(400, "center_only", "כרגע נרשמים להגעה למרכז בלבד. באיזה יום ובאילו שעות?");
     if (!strcmp(text, "שלום") || !strcmp(text, "היי") || !strcmp(text, "הי") ||
-        !strcmp(text, "שלום איציק")) {
+        !strcmp(text, "שלום איציק") || !strcmp(text, "היי איציק") || !strcmp(text, "בוקר טוב") ||
+        !strcmp(text, "שלום איציק!")) {
         Result r = ok();
         js(r.json, "message",
            "אהלן! איציק כאן 🙂 אפשר לבקש לוח שבועי, או לכתוב למשל: תרשום אותי ביום ראשון מ-9 עד "
            "13.");
+        return r;
+    }
+    if (!strcmp(text, "עזרה") || !strcmp(text, "מה אתה יכול לעשות") ||
+        !strcmp(text, "מה אתה יכול לעשות?") || !strcmp(text, "איך נרשמים")) {
+        Result r = ok();
+        js(r.json, "message",
+           u->admin ? "אפשר לבקש ממני את הלוח השבועי של כולם 🙂 הרשמה למשמרות נעשית מחשבון משתתף; "
+                      "חשבונות חדשים יוצרים בניהול ← משתמשים."
+                    : "אפשר לבקש לראות את השבוע או להירשם למשמרת 🙂 למשל: קבע לי ביום ראשון מ-9 עד "
+                      "13. אם חסרות שעות אשאל, ולפני שמירה אבקש אישור.");
         return r;
     }
     if (!strcmp(text, "תודה") || !strcmp(text, "תודה איציק")) {
@@ -1784,6 +1795,21 @@ static Result wolfe_command(App *a, const Identity *u, json_object *j) {
         json_object_put(decision);
         return fail(500, "wolfe_error", "לא התקבלה תשובה תקינה מאיציק.");
     }
+    /* Explain the role before asking for details of a booking the manager
+     * cannot make. Wolfe exposes the selected tool for incomplete requests too. */
+    const char *intent = str(decision, "tool", 40);
+    json_object *intent_calls = NULL;
+    if (!strcmp(status, "call") && json_object_object_get_ex(decision, "calls", &intent_calls) &&
+        json_object_is_type(intent_calls, json_type_array) &&
+        json_object_array_length(intent_calls) == 1)
+        intent = str(json_object_array_get_idx(intent_calls, 0), "name", 40);
+    if (u->admin && intent && !strcmp(intent, "propose_booking") &&
+        (!strcmp(status, "call") || !strcmp(status, "missing_arguments"))) {
+        json_object_put(decision);
+        return fail(403, "worker_only",
+                    "הבנתי את בקשת ההרשמה 🙂 כרגע מחובר חשבון מנהל. כדי להירשם למשמרת, יש להיכנס "
+                    "עם חשבון משתתף. כאן אוכל להציג את הלוח השבועי של כולם.");
+    }
     json_object *out = json_object_new_object();
     js(out, "engine", "wolfe");
     js(out, "status", status);
@@ -1793,7 +1819,8 @@ static Result wolfe_command(App *a, const Identity *u, json_object *j) {
        !strcmp(status, "ambiguous") ? "יש כמה אפשרויות. נסו לפרט את הבקשה."
        : !strcmp(status, "missing_arguments")
            ? "באיזה יום ובאילו שעות? אפשר 09–13, 10–14, 11–15, 12–16 או יום מלא."
-           : "לא נבחרה פעולה. אפשר לנסח בקשה חדשה.");
+           : "לא הצלחתי לזהות בקשה לביצוע. אפשר לבקש לוח שבועי או לכתוב, למשל: קבע לי ביום ראשון "
+             "מ-9 עד 13. ההרשמה נשמרת רק אחרי אישור.");
     if (strcmp(status, "call")) {
         json_object *missing = NULL;
         if (json_object_object_get_ex(decision, "missing", &missing) &&
