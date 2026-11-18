@@ -1,4 +1,4 @@
-# Questions for Reut / שאלות לרעות
+# Questions for Reut / שאלות לראות
 
 2026-11-17 — prepared for the demonstration. The Polygon demo uses fictional
 accounts. Existing learners have not been migrated.
