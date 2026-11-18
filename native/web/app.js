@@ -86,7 +86,9 @@ async function api(path, method = "GET", data) {
     if (epoch !== S.epoch) throw new Error("החיבור השתנה. נסו שוב.");
     if (!response.ok) {
         if (response.status === 401 && S.user) loggedOut();
-        throw new Error(value.message || "הפעולה לא הושלמה.");
+        const error = new Error(value.message || "הפעולה לא הושלמה.");
+        error.code = value.error;
+        throw error;
     }
     if (value.csrf) S.csrf = value.csrf;
     return value;
@@ -912,7 +914,8 @@ bind("itzik-form", async (v, f) => {
         });
     } catch (error) {
         if (ticket === S.chat && epoch === S.epoch) {
-            S.pending = "";
+            // A date correction continues the same request, including its hours.
+            S.pending = error.code === "past_booking_date" ? input : "";
             bubble(error.message);
         }
         return;

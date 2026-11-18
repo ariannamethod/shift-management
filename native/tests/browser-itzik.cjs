@@ -24,13 +24,18 @@ const fs = require("node:fs");
                 .fill(credentials[role].password);
             await page.locator("#login-form button").click();
             await page.locator("#calendar table").waitFor();
-            if (role === "worker") {
+            // Exercise the actual failure: a Sunday in the displayed past.
+            const israelDay = new Intl.DateTimeFormat("en-US", {
+                timeZone: "Asia/Jerusalem",
+                weekday: "long",
+            }).format(new Date());
+            if (role === "worker" && israelDay === "Sunday") {
                 const response = page.waitForResponse(
                     (r) =>
                         r.url().includes("/api/week?start=") &&
                         r.status() === 200,
                 );
-                await page.locator("#next-week").click();
+                await page.locator("#previous-week").click();
                 await response;
             }
             await page.locator("#itzik-toggle").click();
@@ -51,7 +56,30 @@ const fs = require("node:fs");
                     .locator("#itzik-messages")
                     .getByText("באילו שעות —", { exact: false })
                     .waitFor();
-                await say("מ 9 עד 13");
+                const rejected = page.waitForResponse((r) =>
+                    r.url().endsWith("/api/wolfe"),
+                );
+                await say("12-16");
+                const rejection = await (await rejected).json();
+                if (rejection.error !== "past_booking_date")
+                    throw Error(JSON.stringify(rejection));
+                await page
+                    .locator("#itzik-messages")
+                    .getByText("שמרתי את היום ואת השעות", { exact: false })
+                    .waitFor();
+                const accepted = page.waitForResponse((r) =>
+                    r.url().endsWith("/api/wolfe"),
+                );
+                await say("בשבוע הבא");
+                const proposal = await (await accepted).json();
+                if (proposal.proposal?.period !== "12_16")
+                    throw Error("Lost hours: " + JSON.stringify(proposal));
+                console.log(
+                    JSON.stringify({
+                        rejection: rejection.message,
+                        proposal: proposal.proposal,
+                    }),
+                );
                 await page
                     .locator("#itzik-messages")
                     .getByRole("button", { name: "אישור הרשמה", exact: true })
@@ -66,7 +94,7 @@ const fs = require("node:fs");
                 role +
                     ": screenshot phrase handled in chat" +
                     (role === "worker"
-                        ? ", hour-only follow-up offered confirmation."
+                        ? ", day → hours → past-date explanation → next week retained the request and offered confirmation."
                         : ", role explained."),
             );
             await page.locator("#logout").click();

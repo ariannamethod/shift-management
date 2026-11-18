@@ -206,3 +206,17 @@ passed on Polygon's Linux build. The live browser check exercised the exact
 screenshot request as manager and as worker, then the short `מ 9 עד 13` follow-up.
 It observed a role explanation or a confirmation proposal respectively, without
 confirming or writing a shift.
+
+### Keep the request through a past-date correction — 2026-11-18
+
+The next screenshot exposed a separate failure: the hourly answer was parsed,
+but Sunday in the displayed week was already past. The generic date rejection
+then cleared the browser's pending request. The earlier browser check selected
+a future week and did not cover this recovery path.
+
+Itzik now reports the exact past date and retained hours. The browser keeps the
+request for `past_booking_date`, so `בשבוע הבא` continues it with the same day
+and hours. Numeric ranges in Hebrew replies use explicit direction isolation.
+Three focused HTTP cases passed locally and on Linux. The live browser replayed
+Sunday → `12-16` → past-date explanation → `בשבוע הבא`, receiving a proposal for
+2026-11-22, 12:00–16:00. It did not confirm or write a shift.

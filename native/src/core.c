@@ -1818,7 +1818,8 @@ static Result wolfe_command(App *a, const Identity *u, json_object *j) {
     js(out, "message",
        !strcmp(status, "ambiguous") ? "יש כמה אפשרויות. נסו לפרט את הבקשה."
        : !strcmp(status, "missing_arguments")
-           ? "באיזה יום ובאילו שעות? אפשר 09–13, 10–14, 11–15, 12–16 או יום מלא."
+           ? "באיזה יום ובאילו שעות? אפשר \u206609–13\u2069, \u206610–14\u2069, \u206611–15\u2069, "
+             "\u206612–16\u2069 או יום מלא."
            : "לא הצלחתי לזהות בקשה לביצוע. אפשר לבקש לוח שבועי או לכתוב, למשל: קבע לי ביום ראשון "
              "מ-9 עד 13. ההרשמה נשמרת רק אחרי אישור.");
     if (strcmp(status, "call")) {
@@ -1831,7 +1832,9 @@ static Result wolfe_command(App *a, const Identity *u, json_object *j) {
                 if (field && !strcmp(field, "location"))
                     js(out, "message", "איפה לומדים — מהבית או בחממה?");
                 else if (field && !strcmp(field, "period"))
-                    js(out, "message", "באילו שעות — 09–13, 10–14, 11–15, 12–16 או יום מלא?");
+                    js(out, "message",
+                       "באילו שעות — \u206609–13\u2069, \u206610–14\u2069, \u206611–15\u2069, "
+                       "\u206612–16\u2069 או יום מלא?");
                 else if (field && !strcmp(field, "day"))
                     js(out, "message", "באיזה יום — ראשון עד חמישי, היום או מחר?");
             }
@@ -1879,6 +1882,17 @@ static Result wolfe_command(App *a, const Identity *u, json_object *j) {
                     offset = i;
             if (offset < 0 || !adddays(start, offset + (next ? 7 : 0), date))
                 goto invalid;
+        }
+        if (strcmp(date, now) < 0) {
+            char message[1024];
+            snprintf(message, sizeof message,
+                     "התאריך \u2066%.2s/%.2s/%.4s\u2069 בשבוע שמוצג כבר עבר. "
+                     "שמרתי את היום ואת השעות \u2066%s–%s\u2069. "
+                     "אפשר לכתוב ״בשבוע הבא״ כדי להמשיך בלי להתחיל מחדש.",
+                     date + 8, date + 5, date, periods[index].start, periods[index].end);
+            json_object_put(out);
+            json_object_put(decision);
+            return fail(409, "past_booking_date", message);
         }
         if (!editable_date(date)) {
             json_object_put(out);

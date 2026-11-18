@@ -292,4 +292,21 @@ class NativeTests(unittest.TestCase):
         with sqlite3.connect(self.db) as db:
             self.assertEqual(db.execute('SELECT count(*) FROM shifts').fetchone()[0],0)
 
+    def test_itzik_past_date_keeps_hours_for_week_correction(self):
+        start=dt.date.fromisoformat(self.week)
+        if start>=self.today: start-=dt.timedelta(days=7)
+        for phrase,hours,period in [('קבע לי יום ראשון','12-16','12_16'),('קבע לי ביום ראשון בבוקר','09-13','09_13')]:
+            first=self.worker.request('POST','/api/wolfe',{'text':phrase,'week_start':start.isoformat()})
+            self.assertEqual(first[1]['missing'],['period'])
+            second=self.worker.request('POST','/api/wolfe',{'text':phrase+' '+hours,'week_start':start.isoformat()})
+            self.assertEqual(second[0],409,second[1])
+            self.assertEqual(second[1]['error'],'past_booking_date')
+            self.assertIn(start.strftime('%d/%m/%Y'),second[1]['message'])
+            self.assertIn('בשבוע הבא',second[1]['message'])
+            final=self.worker.request('POST','/api/wolfe',{'text':phrase+' '+hours+' בשבוע הבא','week_start':start.isoformat()})
+            self.assertEqual(final[0],200,final[1])
+            self.assertEqual(final[1]['proposal'],{'date':(start+dt.timedelta(days=7)).isoformat(),'period':period})
+        with sqlite3.connect(self.db) as db:
+            self.assertEqual(db.execute('SELECT count(*) FROM shifts').fetchone()[0],0)
+
 if __name__=='__main__': unittest.main()
